@@ -1,4 +1,4 @@
-# AIS Ship Radar
+# AIS Realtime Tracker
 
 A pet project for receiving, processing, and visualizing live AIS vessel data in a web application.
 
