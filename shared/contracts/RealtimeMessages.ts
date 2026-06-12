@@ -1,22 +1,23 @@
-import type { Vessel } from './Vessel'
+import type { Vessel } from './vesselType'
+import { ClientMessageType, ServerMessageType } from './realtimeMessageTypes'
 
 export type BoundingBox = [[number, number], [number, number]]
 
 export type ServerToClientMessage =
     | {
-          type: 'ais-status'
+          type: typeof ServerMessageType.AisStatus
           payload: string
       }
     | {
-          type: 'vessel-position'
+          type: typeof ServerMessageType.VesselPosition
           payload: Vessel
       }
     | {
-          type: 'vessels-snapshot'
+          type: typeof ServerMessageType.VesselsSnapshot
           payload: Vessel[]
       }
 
 export type ClientToServerMessage = {
-    type: 'subscribe'
+    type: typeof ClientMessageType.Subscribe
     boundingBoxes: BoundingBox[]
 }

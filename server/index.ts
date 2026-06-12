@@ -1,10 +1,13 @@
 import http from 'node:http'
+import { ServerMessageType } from '../shared/contracts/realtimeMessageTypes'
+import { AisConnectionStatus } from '../shared/contracts/serverStatuses'
 import { env } from './app/env'
-import { DEFAULT_BOUNDING_BOXES } from './config/boundingBoxes'
-import { VesselRepository } from './vessels/vesselRepository'
-import { VesselService } from './vessels/VesselService'
-import { RealtimeServer } from './realtime/WsServer'
+import { logger } from './app/logger'
 import { AisStreamClient } from './ais/AisStreamClient'
+import { DEFAULT_BOUNDING_BOXES } from './config/boundingBoxes'
+import { RealtimeServer } from './realtime/wsServer'
+import { VesselRepository } from './vessels/VesselRepository'
+import { VesselService } from './vessels/vesselService'
 
 const httpServer = http.createServer()
 
@@ -17,13 +20,16 @@ const aisStreamClient = new AisStreamClient({
     boundingBoxes: DEFAULT_BOUNDING_BOXES,
     vesselService,
 
-    onVesselPosition: () => {
-        realtimeServer.broadcastVesselsSnapshot()
+    onVesselPosition: (vessel) => {
+        realtimeServer.broadcast({
+            type: ServerMessageType.VesselPosition,
+            payload: vessel,
+        })
     },
 
-    onStatusChange: (status: string) => {
+    onStatusChange: (status) => {
         realtimeServer.broadcast({
-            type: 'ais-status',
+            type: ServerMessageType.AisStatus,
             payload: status,
         })
     },
@@ -39,7 +45,6 @@ realtimeServer = new RealtimeServer({
 })
 
 httpServer.listen(env.PORT, () => {
-    console.log(`[Server] listening on ws://localhost:${env.PORT}/ws`)
-
-    aisStreamClient.connect()
+    logger.info('server', `listening on ws://localhost:${env.PORT}/ws`)
+    logger.info('ais', AisConnectionStatus.WaitingForSubscription)
 })

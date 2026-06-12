@@ -1,10 +1,10 @@
-# AIS Ship Radar
+# AIS Tracker Realtime
 
-A pet project for receiving, processing, and visualizing live AIS vessel data in a web application.
+Real-time AIS vessel tracking application built with React, TypeScript, MobX, MapLibre GL, and a Node.js WebSocket proxy.
 
-The project connects to the AISStream WebSocket API through a local Node.js proxy server, normalizes incoming vessel position reports, stores the latest vessel state in memory, and sends live updates to a React frontend.
+The app connects to AISStream through a local backend proxy, receives live AIS vessel position reports, normalizes them on the server, and displays vessels on an interactive map.
 
-The current version is a simple prototype that displays received AIS data as text and table data. The architecture is prepared for future map visualization, vessel trails, filters, history, and storage.
+The project is built as a public pet project, but follows a clean modular architecture with separated transport, state, map lifecycle, and shared contracts.
 
 ## Table of Contents
 
@@ -14,81 +14,88 @@ The current version is a simple prototype that displays received AIS data as tex
 - [Data Flow](#data-flow)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
-- [Backend Structure](#backend-structure)
-- [Frontend Structure](#frontend-structure)
-- [Shared Contracts](#shared-contracts)
+- [Backend Architecture](#backend-architecture)
+- [Frontend Architecture](#frontend-architecture)
+- [State Management](#state-management)
+- [Map Architecture](#map-architecture)
 - [Security](#security)
 - [Environment Variables](#environment-variables)
 - [Installation](#installation)
 - [Running Locally](#running-locally)
+- [Geolocation Flow](#geolocation-flow)
 - [AIS Bounding Boxes](#ais-bounding-boxes)
-- [MobX Store Convention](#mobx-store-convention)
 - [Current Limitations](#current-limitations)
 - [Roadmap](#roadmap)
+- [Public Repository Checklist](#public-repository-checklist)
 - [License](#license)
 
 ## Overview
 
-AIS Ship Radar is a small maritime data application built around live AIS vessel messages.
+AIS Tracker Realtime is a web application for displaying live AIS vessel data on an interactive map.
 
-AIS stands for Automatic Identification System. Ships use AIS to broadcast information such as position, speed, course, heading, MMSI, and vessel metadata.
+AIS stands for Automatic Identification System. Ships use AIS to broadcast information such as vessel position, speed, course, heading, MMSI, and related metadata.
 
-This project uses AISStream as an external AIS data source and provides a local application architecture around it.
+The current version of the app:
 
-Current functionality:
-
-- connect to AISStream through a backend proxy
-- receive live AIS position reports
-- normalize incoming messages into internal vessel objects
-- keep the latest vessel state in memory
-- stream vessel data to the frontend
-- display received vessels in a React UI
+- requests the user’s current location
+- centers the map on the user
+- calculates the current map bounding box
+- sends the bounding box to the backend
+- subscribes to AISStream using that bounding box
+- receives live vessel position reports
+- displays vessels on a MapLibre GL map
+- shows available vessels in an overlay list
 
 ## Project Goals
 
-The goal of this project is to build a clean and extendable AIS data application while keeping the first version simple.
+The goal of this project is to build a clean and extendable real-time AIS tracking application.
 
 Main goals:
 
-- avoid exposing API keys in the browser
-- keep backend and frontend responsibilities separate
-- use explicit shared contracts between server and client
-- start with a simple in-memory prototype
-- prepare the structure for map visualization and historical data
-- keep the project easy to run locally
-- make the repository safe to publish publicly
+- keep API keys server-side
+- avoid exposing secrets in the browser
+- use shared TypeScript contracts between backend and frontend
+- keep transport logic separate from MobX stores
+- keep map lifecycle isolated in dedicated hooks
+- use a modular monolith architecture
+- make the project safe for a public GitHub repository
+- keep the first version simple while preparing for future features
 
 Possible future features:
 
-- live vessel map
-- vessel heading indicators
-- vessel trails
-- port traffic monitoring
+- selected vessel details panel
+- vessel search
 - vessel filtering
+- heading vectors
+- vessel trails
+- historical replay
+- route tracking
+- port traffic monitoring
 - geofencing zones
-- route history
-- replay mode
 - simple anomaly detection
 - PostgreSQL/PostGIS storage
+- Docker setup
 
 ## Architecture
 
 The project follows a modular monolith approach.
 
-It is intentionally not split into microservices at this stage. For a pet project, a modular monolith gives a better balance between simplicity and maintainability.
-
-The repository contains both backend and frontend code, but the code is separated by responsibility.
+It is intentionally not split into microservices at this stage. For a pet project, a modular monolith gives a better balance between simplicity, maintainability, and future scalability.
 
 ```txt
 AISStream
    ↓
-server/ais
+Node.js backend proxy
    ↓
-server/vessels
+AIS normalization
    ↓
-server/realtime
+Vessel domain service
+   ↓
+Realtime WebSocket server
    ↓
 React frontend
+   ↓
+MapLibre GL map
 ```
 
 ### Why Modular Monolith?
@@ -96,39 +103,33 @@ React frontend
 Microservices would add unnecessary complexity at this stage:
 
 - multiple deployable services
+- more infrastructure
 - duplicated configuration
 - network boundaries
-- more infrastructure
 - more operational overhead
 
-A modular monolith keeps the project simple while still making the codebase easy to grow.
-
-Each module has a clear responsibility:
-
-- `server/ais` handles the external AISStream integration
-- `server/vessels` handles vessel domain state
-- `server/realtime` handles WebSocket communication with the frontend
-- `shared/contracts` keeps backend and frontend types aligned
-- `src/features` contains frontend feature modules
-
-If the project grows, individual modules can later be extracted into separate services or packages.
+A modular monolith keeps the project simple while still separating responsibilities clearly.
 
 ## Data Flow
 
 Current data flow:
 
 ```txt
-1. Backend starts
-2. Backend reads AISSTREAM_API_KEY from .env
-3. Backend connects to AISStream WebSocket API
-4. Backend sends subscription payload with bounding boxes
-5. AISStream sends raw AIS PositionReport messages
-6. Backend normalizes raw AIS messages into Vessel objects
-7. VesselService stores the latest vessel state in memory
-8. RealtimeServer sends vessel data to connected frontend clients
-9. React frontend receives WebSocket messages
-10. MobX store updates observable state
-11. UI renders vessel data as text/table
+1. User opens the app
+2. Frontend requests browser geolocation
+3. Map centers on the user location
+4. Frontend calculates the current map bounding box
+5. Frontend sends the bounding box to the backend
+6. Backend validates the bounding box
+7. Backend connects to AISStream
+8. Backend subscribes to AIS data for the bounding box
+9. AISStream sends raw AIS PositionReport messages
+10. Backend normalizes raw messages into Vessel objects
+11. Backend stores the latest vessel state in memory
+12. Backend sends incremental vessel updates to the frontend
+13. Frontend updates MobX state
+14. MapLibre GL source is updated
+15. Vessels are rendered on the map
 ```
 
 ## Tech Stack
@@ -140,6 +141,7 @@ Current data flow:
 - Vite
 - MobX
 - mobx-react-lite
+- MapLibre GL JS
 
 ### Backend
 
@@ -153,249 +155,330 @@ Current data flow:
 
 - AISStream WebSocket API
 
+### Development
+
+- ESLint
+- GitHub Actions CI
+- Node.js 24
+
 ## Project Structure
 
 ```txt
 project-root/
   server/
-    index.ts
-
     app/
       env.ts
+      logger.ts
 
     ais/
-      aisStreamClient.ts
       aisNormalizer.ts
+      aisStreamClient.ts
       aisTypes.ts
 
     config/
       boundingBoxes.ts
 
     realtime/
+      isValidBoundingBox.ts
       wsServer.ts
 
     vessels/
       vesselRepository.ts
       vesselService.ts
 
+    index.ts
+
   shared/
     contracts/
-      vessel.ts
       realtimeMessages.ts
+      realtimeMessageTypes.ts
+      serverStatuses.ts
+      vessel.ts
 
   src/
     app/
       App.tsx
       App.css
-
-    features/
-      vessels/
-        components/
-          VesselsTable.tsx
+      rootStore.ts
+      RootStoreContext.tsx
 
     stores/
+      RootStore.ts
+      UserLocationStore.ts
       VesselsStore.ts
 
     shared/
+      api/
+        RealtimeClient.ts
+
       config/
         realtime.ts
 
+    features/
+      map/
+        components/
+          LocateMeButton.tsx
+          MapOverlay.tsx
+          VesselsMap.tsx
+
+        config/
+          defaultBoundingBoxes.ts
+          mapStyle.ts
+
+        hooks/
+          useInitialAisSubscription.ts
+          useMapInstance.ts
+          useUserLocationOnMap.ts
+          useVesselsMapSource.ts
+
+        lib/
+          createVesselTriangleImageData.ts
+          createVesselsGeoJson.ts
+          getMapBoundingBox.ts
+
+        styles/
+          map.css
+
+  .github/
+    workflows/
+      ci.yml
+
   .env.example
   .gitignore
+  .nvmrc
+  README.md
+  SECURITY.md
   package.json
   tsconfig.json
   vite.config.ts
 ```
 
-## Backend Structure
+## Backend Architecture
 
-The backend is located in the `server` directory.
+The backend is responsible for:
 
-### `server/index.ts`
-
-Application entry point.
-
-Responsible for:
-
-- creating the HTTP server
-- creating repositories and services
-- creating the realtime WebSocket server
-- creating the AISStream client
-- starting the backend server
-
-### `server/app`
-
-Application-level configuration.
-
-```txt
-server/app/
-  env.ts
-```
-
-`env.ts` reads environment variables and validates required values.
+- reading server-side environment variables
+- connecting to AISStream
+- validating client subscription bounding boxes
+- normalizing raw AIS messages
+- storing the latest vessel state in memory
+- broadcasting realtime updates to connected frontend clients
 
 ### `server/ais`
 
-External AIS integration module.
-
-```txt
-server/ais/
-  aisStreamClient.ts
-  aisNormalizer.ts
-  aisTypes.ts
-```
+Handles the external AISStream integration.
 
 Responsibilities:
 
-- connect to AISStream
-- send AISStream subscription payload
-- receive raw WebSocket messages
-- parse incoming AIS messages
-- normalize raw data into internal vessel objects
-- handle reconnect logic
+- connect to AISStream WebSocket API
+- send subscription payload
+- receive raw AIS messages
+- parse incoming messages
+- normalize AIS data
+- handle reconnect lifecycle
 
 ### `server/vessels`
 
-Vessel domain module.
+Contains vessel domain logic.
 
-```txt
-server/vessels/
-  vesselRepository.ts
-  vesselService.ts
-```
+Current implementation stores vessels in memory using a `Map`, where the key is the vessel MMSI.
 
-Responsibilities:
-
-- store latest vessel state
-- update vessel position data
-- provide current vessel snapshot
-- isolate vessel domain logic from transport logic
-
-At the current stage, vessels are stored in memory using a `Map`.
-
-The key is the vessel MMSI.
+This layer can later be backed by Redis, PostgreSQL, or PostGIS.
 
 ### `server/realtime`
 
-Frontend realtime communication module.
-
-```txt
-server/realtime/
-  wsServer.ts
-```
+Handles frontend WebSocket communication.
 
 Responsibilities:
 
-- accept frontend WebSocket connections
+- accept frontend WebSocket clients
 - send initial vessel snapshot
-- broadcast vessel updates
-- handle frontend subscription messages
+- receive subscription messages
+- validate bounding boxes
+- broadcast incremental vessel updates
 
-### `server/config`
+### `server/app`
 
-Backend configuration files.
+Contains application-level infrastructure:
 
-```txt
-server/config/
-  boundingBoxes.ts
-```
+- environment configuration
+- logger
 
-Currently stores default AIS bounding boxes.
+## Frontend Architecture
 
-## Frontend Structure
-
-The frontend is located in the `src` directory.
-
-```txt
-src/
-  app/
-  features/
-  stores/
-  shared/
-```
+The frontend is organized around app composition, stores, shared infrastructure, and feature modules.
 
 ### `src/app`
 
 Application composition layer.
 
-```txt
-src/app/
-  App.tsx
-  App.css
-```
+Contains:
 
-Contains the root application component and global application styles.
-
-### `src/features`
-
-Feature-based UI modules.
-
-Current feature:
-
-```txt
-src/features/vessels/
-```
-
-Possible future features:
-
-```txt
-src/features/map/
-src/features/filters/
-src/features/zones/
-src/features/history/
-src/features/alerts/
-```
+- root React component
+- RootStore provider
+- application-level context
+- root store instance
 
 ### `src/stores`
 
 MobX stores.
 
-Current store:
+Stores contain observable state, actions, and computed values.
 
-```txt
-src/stores/VesselsStore.ts
-```
+Stores do not own low-level transport objects such as WebSocket connections.
 
-The store receives WebSocket messages from the backend and keeps frontend vessel state.
+Current stores:
+
+- `RootStore`
+- `VesselsStore`
+- `UserLocationStore`
 
 ### `src/shared`
 
-Frontend shared utilities, configuration, and helpers.
+Frontend shared infrastructure.
+
+Current modules:
+
+- `RealtimeClient`
+- realtime config
+
+### `src/features/map`
+
+Map feature module.
+
+Contains:
+
+- MapLibre GL component
+- map overlay
+- locate-me button
+- map lifecycle hooks
+- GeoJSON helpers
+- vessel icon generation
+- map style configuration
+
+## State Management
+
+The project uses MobX with explicit annotations.
+
+The project intentionally avoids `makeAutoObservable`.
+
+Store rules:
+
+- use `makeObservable`
+- declare observables explicitly
+- declare actions explicitly
+- declare computed values explicitly
+- do not store WebSocket lifecycle inside domain stores
+- do not make technical objects observable
+- keep side effects in clients, hooks, or orchestration layers
 
 Example:
 
-```txt
-src/shared/config/realtime.ts
+```ts
+makeObservable(this, {
+    vessels: observable,
+    status: observable,
+    error: observable,
+
+    handleRealtimeMessage: action,
+    upsertVessel: action,
+    setStatus: action,
+
+    vesselsList: computed,
+    vesselsCount: computed,
+})
 ```
 
-## Shared Contracts
+## RootStore and React Context
 
-The `shared/contracts` directory contains TypeScript types shared between backend and frontend.
+The app uses `RootStore` as a composition root.
 
-```txt
-shared/contracts/
-  vessel.ts
-  realtimeMessages.ts
+`RootStore` creates and connects:
+
+- `VesselsStore`
+- `UserLocationStore`
+- `RealtimeClient`
+
+React Context is used to provide the root store to the component tree.
+
+This avoids direct singleton imports inside feature components and makes the app easier to test, mock, and extend.
+
+Instead of importing stores directly:
+
+```ts
+import { vesselsStore } from './stores/VesselsStore'
 ```
 
-This avoids duplicating message types on both sides and keeps the WebSocket API explicit.
+components access stores through hooks:
 
-Example contract types:
+```ts
+const vesselsStore = useVesselsStore()
+```
 
-- `Vessel`
-- `BoundingBox`
-- `ServerToClientMessage`
-- `ClientToServerMessage`
+## Realtime Client
+
+The frontend WebSocket transport is handled by `RealtimeClient`.
+
+Responsibilities:
+
+- open the WebSocket connection to the local backend proxy
+- parse incoming server messages
+- send AIS subscription messages
+- keep the latest subscription until the socket is open
+- avoid mixing transport lifecycle with MobX domain stores
+
+The latest AIS subscription is stored and sent once the WebSocket connection becomes available.
+
+This makes the client resilient to cases where the map bounding box is ready before the socket is fully opened.
+
+## Map Architecture
+
+The MapLibre GL lifecycle is split into dedicated hooks.
+
+Current hooks:
+
+- `useMapInstance`
+- `useVesselsMapSource`
+- `useUserLocationOnMap`
+- `useInitialAisSubscription`
+
+This keeps `VesselsMap` small and focused on composition.
+
+### Vessel Rendering
+
+Vessels are rendered as simple triangular navigation markers.
+
+The marker rotation is based on:
+
+```txt
+heading → cog → 0
+```
+
+Map data is converted into GeoJSON before being passed to MapLibre.
+
+GeoJSON coordinates use:
+
+```txt
+[longitude, latitude]
+```
+
+AISStream bounding boxes use:
+
+```txt
+[[southLat, westLon], [northLat, eastLon]]
+```
 
 ## Security
 
 This repository is intended to be public.
 
-Because of that, API key handling is important.
+The AISStream API key must never be exposed to the frontend and must never be committed to the repository.
 
-The AISStream API key must never be committed to the repository and must never be exposed to the browser.
+Correct:
 
-Do not place the AISStream token in frontend environment variables.
+```env
+AISSTREAM_API_KEY=your_aisstream_api_key_here
+```
 
 Incorrect:
 
@@ -403,17 +486,11 @@ Incorrect:
 VITE_AISSTREAM_API_KEY=your_real_key_here
 ```
 
-Any environment variable starting with `VITE_` can be exposed to the browser bundle.
+Any environment variable prefixed with `VITE_` can be exposed to the browser bundle.
 
-Correct:
+The frontend should only know the backend WebSocket URL.
 
-```env
-AISSTREAM_API_KEY=your_real_key_here
-```
-
-The AISStream key should be read only by the Node.js backend.
-
-The frontend should connect only to the local backend proxy:
+Correct data flow:
 
 ```txt
 React frontend
@@ -423,31 +500,40 @@ Local backend WebSocket proxy
 AISStream
 ```
 
-Before publishing the repository, make sure:
+Incorrect data flow:
 
-- `.env` is included in `.gitignore`
-- real API keys were never committed
-- only `.env.example` is committed
-- no token appears in source code
-- no token appears in README examples
-- no token appears in screenshots or logs
+```txt
+React frontend
+   ↓
+AISStream
+```
 
-If a real token was accidentally committed, rotate the token immediately.
+Before publishing or pushing changes, make sure no real API key exists in:
+
+- source code
+- README
+- screenshots
+- logs
+- commit history
+- `.env.example`
 
 ## Environment Variables
 
-Create a local `.env` file in the project root.
+Create a local `.env` file in the project root:
 
 ```env
 AISSTREAM_API_KEY=your_aisstream_api_key_here
 PORT=3001
+LOG_LEVEL=info
+VITE_REALTIME_WS_URL=ws://localhost:3001/ws
 ```
 
-Create `.env.example` and commit it to the repository:
+Create and commit `.env.example`:
 
 ```env
 AISSTREAM_API_KEY=your_aisstream_api_key_here
 PORT=3001
+LOG_LEVEL=info
 VITE_REALTIME_WS_URL=ws://localhost:3001/ws
 ```
 
@@ -459,27 +545,31 @@ Make sure `.env` is ignored by Git:
 .env.*.local
 ```
 
-`VITE_REALTIME_WS_URL` is safe to expose because it contains only the frontend-to-backend WebSocket URL, not a secret.
+`VITE_REALTIME_WS_URL` is safe because it contains only the frontend-to-backend WebSocket URL, not a secret.
 
 ## Installation
 
-Install project dependencies:
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-Required dependencies:
+Required runtime dependencies include:
 
 ```bash
-npm i mobx mobx-react-lite
-npm i ws dotenv
-npm i -D tsx concurrently @types/ws
+npm i mobx mobx-react-lite maplibre-gl ws dotenv
+```
+
+Required development dependencies include:
+
+```bash
+npm i -D tsx concurrently @types/ws @types/geojson
 ```
 
 ## Running Locally
 
-Start the backend proxy and Vite frontend together:
+Start both the backend proxy and Vite frontend:
 
 ```bash
 npm run dev
@@ -495,7 +585,7 @@ Backend WebSocket proxy:
 ws://localhost:3001/ws
 ```
 
-Example `package.json` scripts:
+Example package scripts:
 
 ```json
 {
@@ -503,15 +593,35 @@ Example `package.json` scripts:
         "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
         "dev:client": "vite",
         "dev:server": "tsx server/index.ts",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint .",
         "build": "tsc && vite build",
         "preview": "vite preview"
     }
 }
 ```
 
+## Geolocation Flow
+
+When the app starts:
+
+1. The browser requests the user’s current location.
+2. The map centers on the received location.
+3. The current map viewport is converted into a bounding box.
+4. The bounding box is sent to the backend.
+5. The backend subscribes to AISStream for that area.
+
+If geolocation is not available or permission is denied, the app can fall back to predefined bounding boxes.
+
 ## AIS Bounding Boxes
 
-Default AIS bounding boxes are configured in:
+Default or fallback AIS bounding boxes are configured in:
+
+```txt
+src/features/map/config/defaultBoundingBoxes.ts
+```
+
+Backend defaults can be configured in:
 
 ```txt
 server/config/boundingBoxes.ts
@@ -529,7 +639,7 @@ Bounding box format:
 Example:
 
 ```ts
-export const DEFAULT_BOUNDING_BOXES = [
+export const FALLBACK_BOUNDING_BOXES = [
     [
         [51.7, 3.3],
         [52.7, 5.4],
@@ -537,97 +647,62 @@ export const DEFAULT_BOUNDING_BOXES = [
 ]
 ```
 
-The default area can be changed depending on what region should be monitored.
+## CI
 
-For example:
+The project uses GitHub Actions for CI.
 
-- Amsterdam / North Sea Canal
-- Rotterdam
-- Antwerp
-- English Channel
-- Baltic Sea
-- any custom area supported by AISStream coverage
+The workflow runs on push and pull request.
 
-## MobX Store Convention
+Current checks:
 
-The project uses MobX for frontend state management.
+- install dependencies
+- TypeScript typecheck
+- ESLint
+- production build
 
-Stores should use explicit MobX annotations with `makeObservable`.
+Node.js version:
 
-The project intentionally avoids `makeAutoObservable`.
-
-Recommended store rules:
-
-- declare observable fields explicitly
-- declare actions explicitly
-- declare computed values explicitly
-- do not make technical side-effect objects observable
-- keep WebSocket, timers, and controllers private when possible
-- update state through actions
-- keep transport parsing separate from UI components
-
-Example convention:
-
-```ts
-constructor() {
-  makeObservable<this, "handleServerMessage">(this, {
-    vessels: observable,
-    status: observable,
-    error: observable,
-
-    connect: action,
-    disconnect: action,
-    upsertVessel: action,
-
-    handleServerMessage: action,
-
-    vesselsList: computed,
-    vesselsCount: computed,
-  });
-}
+```txt
+24
 ```
-
-Objects that should not be observable:
-
-- `WebSocket`
-- `AbortController`
-- timers
-- API clients
-- low-level transport objects
 
 ## Current Limitations
 
-This is an early prototype.
+This is still an early prototype.
 
 Current limitations:
 
-- no map visualization yet
 - no persistent storage
 - no historical vessel tracks
-- no filtering UI
+- no selected vessel details panel
+- no vessel search
+- no vessel filtering
+- no route replay
 - no authentication
 - no production deployment setup
 - vessel data is stored only in memory
 - AIS data completeness depends on AISStream coverage and availability
-- current UI is focused on debugging and text/table output
 
 ## Roadmap
 
 Planned improvements:
 
-- send incremental vessel updates instead of full snapshots on every update
-- add map visualization with MapLibre GL or Leaflet
-- render vessel markers with heading direction
-- add vessel trails for recent movement history
+- add selected vessel state
+- click vessel in list to focus map
+- click vessel marker to open details panel
+- add vessel search
 - add filters by vessel name, MMSI, speed, and area
-- add selected vessel details panel
-- add storage for historical positions
+- add vessel trails
+- add heading vectors
+- add map bbox resubscription with debounce
+- add persistent storage
 - add route replay mode
 - add Docker setup
 - add unit tests for AIS normalization
+- add unit tests for bbox validation
 - add unit tests for vessel repository logic
-- add README screenshots or demo GIF
-- add CI checks for linting, typechecking, and tests
+- add CI checks for tests
+- add screenshots or demo GIF
 
 ## Public Repository Checklist
 
@@ -638,25 +713,23 @@ Before pushing the repository publicly:
 - [ ] no real API keys are present in source code
 - [ ] no real API keys are present in README
 - [ ] no real API keys are present in screenshots
+- [ ] no real API keys are present in logs
 - [ ] `git status` does not include `.env`
 - [ ] project starts with `npm run dev`
-- [ ] frontend works without direct access to AISStream
-- [ ] backend reads the AISStream key from server-side environment variables only
+- [ ] frontend does not connect directly to AISStream
+- [ ] backend reads AISStream key from server-side environment variables only
 
-Optional check before first public push:
+Useful checks:
 
 ```bash
 git grep -n "AISSTREAM_API_KEY"
-```
-
-Also check for accidental token-like strings:
-
-```bash
 git grep -n "VITE_AIS"
+git grep -n "APIKey"
+git grep -n "apiKey"
 ```
 
 ## License
 
 This project is currently intended as a personal pet project.
 
-A license can be added later depending on how the repository will be used.
+A license can be added depending on how the repository will be used.

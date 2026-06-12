@@ -1,5 +1,5 @@
-import type { Vessel } from '../../shared/contracts/Vessel'
-import type { RawAisMessage } from './AisTypes'
+import type { Vessel } from '../../shared/contracts/vesselType'
+import type { RawAisMessage } from './aisTypes'
 
 function toNumber(value: unknown): number | null {
     const result = Number(value)

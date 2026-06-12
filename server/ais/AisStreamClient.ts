@@ -1,50 +1,59 @@
 import { WebSocket } from 'ws'
-import { env } from '../app/env'
+import type { Vessel } from '../../shared/contracts/vesselType'
 import type { BoundingBox } from '../../shared/contracts/realtimeMessages'
-import type { RawAisMessage } from './AisTypes'
+import { AisConnectionStatus } from '../../shared/contracts/serverStatuses'
+import { env } from '../app/env'
+import { logger } from '../app/logger'
+import type { VesselService } from '../vessels/vesselService'
 import { normalizeAisMessage } from './aisNormalizer'
-import type { VesselService } from '../vessels/VesselService'
+import type { RawAisMessage } from './aisTypes'
 
 type AisStreamClientOptions = {
     boundingBoxes: BoundingBox[]
     vesselService: VesselService
-    onVesselPosition: () => void
+    onVesselPosition: (vessel: Vessel) => void
     onStatusChange: (status: string) => void
 }
 
 export class AisStreamClient {
     private socket: WebSocket | null = null
     private reconnectTimer: NodeJS.Timeout | null = null
-    private options: AisStreamClientOptions
+    private shouldReconnect = false
+    private intentionalClose = false
 
-    constructor(options: AisStreamClientOptions) {
-        this.options = options
-    }
+    constructor(private readonly options: AisStreamClientOptions) {}
 
     connect(): void {
         if (this.socket && ([WebSocket.OPEN, WebSocket.CONNECTING] as unknown[]).includes(this.socket.readyState)) {
             return
         }
 
-        this.options.onStatusChange('connecting-to-aisstream')
+        this.shouldReconnect = true
+        this.intentionalClose = false
 
-        this.socket = new WebSocket('wss://stream.aisstream.io/v0/stream')
+        this.options.onStatusChange(AisConnectionStatus.Connecting)
+        logger.info('ais', 'connecting to AISStream')
 
-        this.socket.on('open', () => {
-            this.options.onStatusChange('connected-to-aisstream')
+        const socket = new WebSocket('wss://stream.aisstream.io/v0/stream')
+        this.socket = socket
 
-            const subscription = {
-                APIKey: env.AISSTREAM_API_KEY,
-                BoundingBoxes: this.options.boundingBoxes,
-                FilterMessageTypes: ['PositionReport'],
-            }
+        socket.on('open', () => {
+            this.options.onStatusChange(AisConnectionStatus.Connected)
 
-            this.socket?.send(JSON.stringify(subscription))
+            logger.info('ais', 'connected to AISStream', {
+                boundingBoxesCount: this.options.boundingBoxes.length,
+            })
 
-            console.log('[AIS] connected and subscription sent')
+            socket.send(
+                JSON.stringify({
+                    APIKey: env.AISSTREAM_API_KEY,
+                    BoundingBoxes: this.options.boundingBoxes,
+                    FilterMessageTypes: ['PositionReport'],
+                })
+            )
         })
 
-        this.socket.on('message', (buffer) => {
+        socket.on('message', (buffer) => {
             try {
                 const raw = JSON.parse(buffer.toString()) as RawAisMessage
                 const vessel = normalizeAisMessage(raw)
@@ -54,32 +63,51 @@ export class AisStreamClient {
                 }
 
                 this.options.vesselService.handlePositionUpdate(vessel)
-                this.options.onVesselPosition()
+                this.options.onVesselPosition(vessel)
             } catch (error) {
-                console.error('[AIS] Failed to parse message', error)
+                logger.warn('ais', 'failed to parse AIS message', {
+                    error: error instanceof Error ? error.message : String(error),
+                })
             }
         })
 
-        this.socket.on('close', () => {
-            console.log('[AIS] disconnected')
+        socket.on('close', () => {
+            this.socket = null
+            this.options.onStatusChange(AisConnectionStatus.Disconnected)
 
-            this.options.onStatusChange('disconnected-from-aisstream')
-            this.scheduleReconnect()
+            logger.info('ais', 'disconnected from AISStream', {
+                intentionalClose: this.intentionalClose,
+                shouldReconnect: this.shouldReconnect,
+            })
+
+            if (!this.intentionalClose && this.shouldReconnect) {
+                this.scheduleReconnect()
+            }
         })
 
-        this.socket.on('error', (error) => {
-            console.error('[AIS] WebSocket error', error)
-            this.options.onStatusChange('aisstream-error')
+        socket.on('error', (error) => {
+            this.options.onStatusChange(AisConnectionStatus.Error)
+
+            logger.error('ais', 'AISStream WebSocket error', {
+                error: error instanceof Error ? error.message : String(error),
+            })
         })
     }
 
     reconnectWithBoundingBoxes(boundingBoxes: BoundingBox[]): void {
+        logger.info('ais', 'reconnecting with new bounding boxes', {
+            boundingBoxesCount: boundingBoxes.length,
+        })
+
         this.options.boundingBoxes = boundingBoxes
-        this.disconnect()
+        this.stop()
         this.connect()
     }
 
-    disconnect(): void {
+    stop(): void {
+        this.shouldReconnect = false
+        this.intentionalClose = true
+
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer)
             this.reconnectTimer = null
@@ -93,6 +121,8 @@ export class AisStreamClient {
         if (this.reconnectTimer) {
             return
         }
+
+        logger.info('ais', 'scheduling reconnect')
 
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null

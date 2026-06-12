@@ -1,31 +1,25 @@
-import { action, computed, makeObservable, observable, runInAction } from 'mobx'
-import type { Vessel } from '../../shared/contracts/vessel'
+import { action, computed, makeObservable, observable } from 'mobx'
 import type { ServerToClientMessage } from '../../shared/contracts/realtimeMessages'
-import { REALTIME_WS_URL } from '../../shared/config/realtime'
+import { ServerMessageType } from '../../shared/contracts/realtimeMessageTypes'
+import type { Vessel } from '../../shared/contracts/vesselType'
 
 export class VesselsStore {
     vessels = new Map<string, Vessel>()
     status = 'idle'
     error: string | null = null
 
-    private socket: WebSocket | null = null
-
     constructor() {
-        makeObservable<this, 'handleServerMessage' | 'setError' | 'resetSocket'>(this, {
+        makeObservable(this, {
             vessels: observable,
             status: observable,
             error: observable,
 
-            connect: action,
-            disconnect: action,
+            handleRealtimeMessage: action,
             upsertVessel: action,
             setVesselsSnapshot: action,
             setStatus: action,
-            clear: action,
-
-            handleServerMessage: action,
             setError: action,
-            resetSocket: action,
+            clear: action,
 
             vesselsList: computed,
             vesselsCount: computed,
@@ -33,59 +27,23 @@ export class VesselsStore {
         })
     }
 
-    connect(): void {
-        if (this.socket) {
-            return
+    handleRealtimeMessage(message: ServerToClientMessage): void {
+        switch (message.type) {
+            case ServerMessageType.AisStatus:
+                this.setStatus(message.payload)
+                return
+
+            case ServerMessageType.VesselPosition:
+                this.upsertVessel(message.payload)
+                return
+
+            case ServerMessageType.VesselsSnapshot:
+                this.setVesselsSnapshot(message.payload)
+                return
+
+            default:
+                this.setError('Unknown realtime message')
         }
-
-        this.setStatus('connecting-to-local-proxy')
-        this.setError(null)
-
-        const socket = new WebSocket(REALTIME_WS_URL)
-
-        socket.onopen = () => {
-            runInAction(() => {
-                this.setStatus('connected-to-local-proxy')
-            })
-        }
-
-        socket.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data) as ServerToClientMessage
-
-                runInAction(() => {
-                    this.handleServerMessage(message)
-                })
-            } catch (error) {
-                runInAction(() => {
-                    this.setError('Failed to parse server message')
-                })
-
-                console.error('[VesselsStore] Failed to parse message', error)
-            }
-        }
-
-        socket.onerror = () => {
-            runInAction(() => {
-                this.setStatus('local-proxy-error')
-                this.setError('WebSocket error')
-            })
-        }
-
-        socket.onclose = () => {
-            runInAction(() => {
-                this.setStatus('disconnected-from-local-proxy')
-                this.resetSocket()
-            })
-        }
-
-        this.socket = socket
-    }
-
-    disconnect(): void {
-        this.socket?.close()
-        this.resetSocket()
-        this.setStatus('disconnected')
     }
 
     upsertVessel(vessel: Vessel): void {
@@ -104,6 +62,10 @@ export class VesselsStore {
         this.status = status
     }
 
+    setError(error: string | null): void {
+        this.error = error
+    }
+
     clear(): void {
         this.vessels.clear()
         this.error = null
@@ -111,7 +73,19 @@ export class VesselsStore {
 
     get vesselsList(): Vessel[] {
         return Array.from(this.vessels.values()).sort((a, b) => {
-            return b.timestamp.localeCompare(a.timestamp)
+            const nameA = a.shipName?.trim() || 'Unknown vessel'
+            const nameB = b.shipName?.trim() || 'Unknown vessel'
+
+            const nameCompare = nameA.localeCompare(nameB, undefined, {
+                sensitivity: 'base',
+                numeric: true,
+            })
+
+            if (nameCompare !== 0) {
+                return nameCompare
+            }
+
+            return a.mmsi.localeCompare(b.mmsi)
         })
     }
 
@@ -122,37 +96,4 @@ export class VesselsStore {
     get hasVessels(): boolean {
         return this.vessels.size > 0
     }
-
-    private handleServerMessage(message: ServerToClientMessage): void {
-        switch (message.type) {
-            case 'ais-status': {
-                this.setStatus(message.payload)
-                break
-            }
-
-            case 'vessel-position': {
-                this.upsertVessel(message.payload)
-                break
-            }
-
-            case 'vessels-snapshot': {
-                this.setVesselsSnapshot(message.payload)
-                break
-            }
-
-            default: {
-                this.setError('Unknown server message')
-            }
-        }
-    }
-
-    private setError(error: string | null): void {
-        this.error = error
-    }
-
-    private resetSocket(): void {
-        this.socket = null
-    }
 }
-
-export const vesselsStore = new VesselsStore()
