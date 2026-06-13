@@ -23,8 +23,8 @@ export const useMapInstance = () => {
         mapRef.current = map
 
         return () => {
-            map.remove()
             mapRef.current = null
+            map.remove()
         }
     }, [])
 

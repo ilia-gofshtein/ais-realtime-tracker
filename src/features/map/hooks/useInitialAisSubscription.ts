@@ -23,7 +23,6 @@ export const useInitialAisSubscription = ({
             () => userLocationStore.location,
             (location) => {
                 const map = mapRef.current
-                console.log('User location changed:', toJS(map), toJS(location), hasSubscribedRef.current)
                 if (!map || !location || hasSubscribedRef.current) {
                     return
                 }

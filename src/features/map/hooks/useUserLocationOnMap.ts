@@ -12,7 +12,7 @@ type UseUserLocationOnMapOptions = {
     userLocationStore: UserLocationStore
 }
 
-export const useUserLocationOnMap = ({ mapRef, userLocationStore }: UseUserLocationOnMapOptions): void => {
+export function useUserLocationOnMap({ mapRef, userLocationStore }: UseUserLocationOnMapOptions): void {
     useEffect(() => {
         const map = mapRef.current
 
@@ -20,7 +20,38 @@ export const useUserLocationOnMap = ({ mapRef, userLocationStore }: UseUserLocat
             return
         }
 
-        const setupSourceAndLayer = (): void => {
+        const updateSource = (): void => {
+            const location = userLocationStore.location
+
+            if (!location) {
+                return
+            }
+
+            const source = map.getSource(USER_LOCATION_SOURCE_ID) as GeoJSONSource | undefined
+
+            if (!source) {
+                console.warn('[UserLocation] source is not ready yet')
+                return
+            }
+
+            source.setData({
+                type: 'FeatureCollection',
+                features: [
+                    {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [location.lon, location.lat],
+                        },
+                        properties: {
+                            accuracy: location.accuracy,
+                        },
+                    },
+                ],
+            })
+        }
+
+        const setupSourceAndLayers = (): void => {
             if (!map.getSource(USER_LOCATION_SOURCE_ID)) {
                 map.addSource(USER_LOCATION_SOURCE_ID, {
                     type: 'geojson',
@@ -60,48 +91,23 @@ export const useUserLocationOnMap = ({ mapRef, userLocationStore }: UseUserLocat
                     },
                 })
             }
-        }
 
-        const updateSource = (): void => {
-            const location = userLocationStore.location
-
-            if (!location) {
-                return
-            }
-
-            const source = map.getSource(USER_LOCATION_SOURCE_ID) as GeoJSONSource | undefined
-
-            if (!source) {
-                return
-            }
-
-            source.setData({
-                type: 'FeatureCollection',
-                features: [
-                    {
-                        type: 'Feature',
-                        geometry: {
-                            type: 'Point',
-                            coordinates: [location.lon, location.lat],
-                        },
-                        properties: {
-                            accuracy: location.accuracy,
-                        },
-                    },
-                ],
-            })
+            updateSource()
         }
 
         if (map.isStyleLoaded()) {
-            setupSourceAndLayer()
+            setupSourceAndLayers()
         } else {
-            map.once('load', setupSourceAndLayer)
+            map.once('load', setupSourceAndLayers)
         }
 
         const disposeReaction = reaction(
             () => userLocationStore.location,
             () => {
                 updateSource()
+            },
+            {
+                fireImmediately: true,
             }
         )
 

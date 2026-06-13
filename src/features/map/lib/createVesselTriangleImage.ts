@@ -1,4 +1,4 @@
-export function createVesselTriangleImageData(color = '#38bdf8', size = 64): ImageData {
+export function createVesselTriangleImage(color = '#38bdf8', size = 64): ImageData {
     const canvas = document.createElement('canvas')
 
     canvas.width = size
