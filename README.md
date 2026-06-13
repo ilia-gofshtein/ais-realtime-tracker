@@ -6,6 +6,9 @@ The app connects to AISStream through a local backend proxy, receives live AIS v
 
 The project is built as a public pet project, but follows a clean modular architecture with separated transport, state, map lifecycle, and shared contracts.
 
+<img width="1507" height="819" alt="image" src="https://github.com/user-attachments/assets/73250761-7717-4161-8e12-e7ece1766d03" />
+
+
 ## Table of Contents
 
 - [Overview](#overview)
