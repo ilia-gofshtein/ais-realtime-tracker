@@ -14,14 +14,13 @@ AIS stands for Automatic Identification System. Ships use AIS to broadcast infor
 
 The current version of the app can:
 
-- request the user’s current location
-- center the map on the user
-- calculate the current map bounding box
 - subscribe to AIS data for that area
 - receive live vessel position reports
 - display vessels on a MapLibre GL map
 - show available vessels in an overlay list
 - show vessel details in a map popup
+
+The app uses Amsterdam as the default area because AISStream coverage is known to work reliably there. AIS availability depends on receiver coverage, so some regions may return no data even if vessels are physically present.
 
 ## Project Goals
 
@@ -78,27 +77,24 @@ MapLibre GL map
 
 The backend is responsible for AISStream communication, API key protection, message normalization, bounding box validation, and realtime updates.
 
-The frontend is responsible for geolocation, map rendering, UI overlays, vessel visualization, and client-side state.
+The frontend is responsible for map rendering, UI overlays, vessel visualization, and client-side state.
 
 ## Data Flow
 
 When the app starts:
 
 ```txt
-1. User opens the app
-2. Frontend requests browser geolocation
-3. Map centers on the user location
-4. Frontend calculates the current map bounding box
-5. Frontend sends the bounding box to the backend
-6. Backend validates the bounding box
-7. Backend connects to AISStream
-8. Backend subscribes to AIS data for the bounding box
-9. AISStream sends raw AIS position reports
-10. Backend normalizes raw messages into vessel objects
-11. Backend stores the latest vessel state in memory
-12. Backend sends vessel updates to the frontend
-13. Frontend updates MobX state
-14. MapLibre GL renders vessels on the map
+1. User opens app
+2. Frontend sends the bounding box to the backend
+3. Backend validates the bounding box
+4. Backend connects to AISStream
+5. Backend subscribes to AIS data for the bounding box
+6. AISStream sends raw AIS position reports
+7. Backend normalizes raw messages into vessel objects
+8. Backend stores the latest vessel state in memory
+9. Backend sends vessel updates to the frontend
+10. Frontend updates MobX state
+11. MapLibre GL renders vessels on the map
 ```
 
 The app uses a `snapshot + live updates` model.

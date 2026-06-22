@@ -58,7 +58,6 @@ export class RealtimeServer {
         socket.on('message', (buffer) => {
             try {
                 const message = JSON.parse(buffer.toString()) as ClientToServerMessage
-                console.log('Received message from client:', message)
                 this.handleClientMessage(message)
             } catch (error) {
                 logger.warn('realtime', 'bad client message', {

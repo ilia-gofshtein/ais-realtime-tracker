@@ -1,6 +1,5 @@
 import { createContext, type ReactNode, useContext } from 'react'
 import type { RootStore } from '../stores/RootStore'
-import type { UserLocationStore } from '../stores/UserLocationStore'
 import type { VesselsStore } from '../stores/VesselsStore'
 
 const RootStoreContext = createContext<RootStore | null>(null)
@@ -26,8 +25,4 @@ export const useRootStore = (): RootStore => {
 
 export const useVesselsStore = (): VesselsStore => {
     return useRootStore().vesselsStore
-}
-
-export const useUserLocationStore = (): UserLocationStore => {
-    return useRootStore().userLocationStore
 }

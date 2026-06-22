@@ -2,17 +2,14 @@ import { runInAction } from 'mobx'
 import type { BoundingBox } from '../../shared/contracts/realtimeMessages'
 import { RealtimeClient } from '../shared/api/RealtimeClient'
 import { REALTIME_WS_URL } from '../../shared/config/realtime'
-import { UserLocationStore } from './UserLocationStore'
 import { VesselsStore } from './VesselsStore'
 
 export class RootStore {
     readonly vesselsStore: VesselsStore
-    readonly userLocationStore: UserLocationStore
     readonly realtimeClient: RealtimeClient
 
     constructor() {
         this.vesselsStore = new VesselsStore()
-        this.userLocationStore = new UserLocationStore()
 
         this.realtimeClient = new RealtimeClient({
             url: REALTIME_WS_URL,
@@ -43,10 +40,6 @@ export class RootStore {
 
     stop(): void {
         this.realtimeClient.disconnect()
-    }
-
-    requestUserLocation(): Promise<unknown> {
-        return this.userLocationStore.requestCurrentLocation()
     }
 
     subscribeToAisBoundingBoxes(boundingBoxes: BoundingBox[]): void {

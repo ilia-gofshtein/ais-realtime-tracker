@@ -1,11 +1,12 @@
 import { observer } from 'mobx-react-lite'
+
 import { useRootStore } from '../../../app/RootStoreContext'
-import { LocateMeButton } from './LocateMeButton'
+import { CenterMapButton } from './CenterMapButton'
 import { MapOverlay } from './MapOverlay'
-import { useInitialAisSubscription } from '../hooks/useInitialAisSubscription'
+import { AMSTERDAM_PRESET } from '../config/mapPresets'
 import { useMapInstance } from '../hooks/useMapInstance'
-import { useUserLocationOnMap } from '../hooks/useUserLocationOnMap'
 import { useVesselsMapSource } from '../hooks/useVesselsMapSource'
+
 import '../styles/map.css'
 
 export const VesselsMap = observer(() => {
@@ -17,31 +18,16 @@ export const VesselsMap = observer(() => {
         vesselsStore: rootStore.vesselsStore,
     })
 
-    useUserLocationOnMap({
-        mapRef,
-        userLocationStore: rootStore.userLocationStore,
-    })
-
-    useInitialAisSubscription({
-        mapRef,
-        userLocationStore: rootStore.userLocationStore,
-        onBoundingBoxesReady: (boundingBoxes) => {
-            rootStore.subscribeToAisBoundingBoxes(boundingBoxes)
-        },
-    })
-
-    const centerOnUserLocation = (): void => {
+    const centerOnAmsterdam = (): void => {
         const map = mapRef.current
-        const location = rootStore.userLocationStore.location
 
-        if (!map || !location) {
-            void rootStore.userLocationStore.requestCurrentLocation()
+        if (!map) {
             return
         }
 
         map.flyTo({
-            center: [location.lon, location.lat],
-            zoom: Math.max(map.getZoom(), 13),
+            center: AMSTERDAM_PRESET.center,
+            zoom: AMSTERDAM_PRESET.zoom,
             essential: true,
         })
     }
@@ -52,7 +38,7 @@ export const VesselsMap = observer(() => {
 
             <MapOverlay />
 
-            <LocateMeButton onLocate={centerOnUserLocation} />
+            <CenterMapButton onClick={centerOnAmsterdam} />
         </div>
     )
 })

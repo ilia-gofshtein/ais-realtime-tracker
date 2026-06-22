@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react'
 import maplibregl, { type Map as MapLibreMap } from 'maplibre-gl'
-import { MAP_STYLE } from '../config/mapStyle'
 
-export const useMapInstance = () => {
+import { MAP_STYLE } from '../config/mapStyle'
+import { AMSTERDAM_PRESET } from '../config/mapPresets'
+
+export function useMapInstance() {
     const containerRef = useRef<HTMLDivElement | null>(null)
     const mapRef = useRef<MapLibreMap | null>(null)
 
@@ -14,8 +16,8 @@ export const useMapInstance = () => {
         const map = new maplibregl.Map({
             container: containerRef.current,
             style: MAP_STYLE,
-            center: [4.6, 52.1],
-            zoom: 7,
+            center: AMSTERDAM_PRESET.center,
+            zoom: AMSTERDAM_PRESET.zoom,
         })
 
         map.addControl(new maplibregl.NavigationControl(), 'top-right')
